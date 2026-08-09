@@ -1,15 +1,17 @@
 {
-  "name": "fps-arena",
-  "version": "2.0.0",
-  "description": "Local multiplayer 3D FPS Arena",
+  "name": "nexar",
+  "version": "1.0.0",
+  "description": "NEXAR 3D Multiplayer FPS",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^5.1.0",
-    "three": "^0.180.0",
+    "three": "^0.179.1",
     "ws": "^8.18.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
-
