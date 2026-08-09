@@ -3,13 +3,23 @@ const http = require("http");
 const WebSocket = require("ws");
 const path = require("path");
 
-const PORT = 43827;
-
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+/*
+ * RENDER:
+ * Render sam ustawia zmienną PORT.
+ * Lokalnie możesz używać 43827.
+ */
+const PORT = Number(process.env.PORT) || 43827;
 
 const PUBLIC_DIR = path.join(__dirname, "public");
+
+/*
+ * ==========================================
+ * EXPRESS
+ * ==========================================
+ */
 
 app.use(express.static(PUBLIC_DIR));
 
@@ -24,6 +34,39 @@ app.use(
         )
     )
 );
+
+/*
+ * Prosty endpoint do sprawdzania,
+ * czy serwer działa.
+ */
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "ok",
+        game: "NEXAR",
+        players: [...lobbies.values()]
+            .reduce(
+                (total, lobby) =>
+                    total + lobby.players.size,
+                0
+            )
+    });
+});
+
+/*
+ * ==========================================
+ * WEBSOCKET
+ * ==========================================
+ */
+
+const wss = new WebSocket.Server({
+    server
+});
+
+/*
+ * ==========================================
+ * LOBBIES
+ * ==========================================
+ */
 
 const lobbies = new Map();
 
@@ -46,10 +89,53 @@ const SPAWN_ATTEMPTS = 1000;
 
 const SPAWN_WALL_MARGIN = 0.7;
 
+/*
+ * ==========================================
+ * MAPA
+ * ==========================================
+ */
+
+const WALLS = [
+    {
+        x: 0,
+        z: 0,
+        w: 5,
+        d: 5
+    },
+    {
+        x: -9,
+        z: 0,
+        w: 3,
+        d: 9
+    },
+    {
+        x: 9,
+        z: 0,
+        w: 3,
+        d: 9
+    },
+    {
+        x: 0,
+        z: -10,
+        w: 8,
+        d: 3
+    },
+    {
+        x: 0,
+        z: 10,
+        w: 8,
+        d: 3
+    }
+];
+
+/*
+ * ==========================================
+ * SPAWN
+ * ==========================================
+ */
+
 function pointInsideWall(x, z) {
-
     for (const wall of WALLS) {
-
         const left =
             wall.x -
             wall.w / 2 -
@@ -83,18 +169,12 @@ function pointInsideWall(x, z) {
     return false;
 }
 
-
 function spawnIsSafe(
     lobby,
     x,
     z,
     ignoredPlayer = null
 ) {
-
-    /*
-        Najpierw sprawdzamy ściany.
-    */
-
     if (
         pointInsideWall(
             x,
@@ -104,32 +184,16 @@ function spawnIsSafe(
         return false;
     }
 
-
-    /*
-        Następnie sprawdzamy
-        wszystkich graczy.
-    */
-
     for (
         const other
         of lobby.players.values()
     ) {
-
         if (
             other ===
             ignoredPlayer
         ) {
             continue;
         }
-
-
-        /*
-            Martwy gracz może zostać
-            pominięty, ale w naszej grze
-            respawn jest bardzo szybki,
-            więc najlepiej nadal traktować
-            jego pozycję jako zajętą.
-        */
 
         const dx =
             x -
@@ -145,38 +209,26 @@ function spawnIsSafe(
                 dz * dz
             );
 
-
         if (
             distance <
             SPAWN_MIN_DISTANCE
         ) {
-
             return false;
         }
-
     }
-
 
     return true;
 }
-
 
 function randomSpawn(
     lobby,
     ignoredPlayer = null
 ) {
-
-    /*
-        1000 prób znalezienia
-        bezpiecznego miejsca.
-    */
-
     for (
         let attempt = 0;
         attempt < SPAWN_ATTEMPTS;
         attempt++
     ) {
-
         const x =
             ARENA_MIN +
             Math.random() *
@@ -185,7 +237,6 @@ function randomSpawn(
                 ARENA_MIN
             );
 
-
         const z =
             ARENA_MIN +
             Math.random() *
@@ -193,7 +244,6 @@ function randomSpawn(
                 ARENA_MAX -
                 ARENA_MIN
             );
-
 
         if (
             spawnIsSafe(
@@ -203,25 +253,13 @@ function randomSpawn(
                 ignoredPlayer
             )
         ) {
-
             return {
                 x,
                 y: 1.6,
                 z
             };
-
         }
-
     }
-
-
-    /*
-        Jeżeli mapa jest już tak
-        zapchana, że nie znaleźliśmy
-        miejsca po 1000 próbach,
-        szukamy najbardziej oddalonego
-        punktu z kilku losowych prób.
-    */
 
     let bestSpawn = {
         x: 0,
@@ -231,13 +269,11 @@ function randomSpawn(
 
     let bestDistance = -1;
 
-
     for (
         let attempt = 0;
         attempt < 100;
         attempt++
     ) {
-
         const x =
             ARENA_MIN +
             Math.random() *
@@ -246,7 +282,6 @@ function randomSpawn(
                 ARENA_MIN
             );
 
-
         const z =
             ARENA_MIN +
             Math.random() *
@@ -254,7 +289,6 @@ function randomSpawn(
                 ARENA_MAX -
                 ARENA_MIN
             );
-
 
         if (
             pointInsideWall(
@@ -265,23 +299,19 @@ function randomSpawn(
             continue;
         }
 
-
         let closest =
             Infinity;
-
 
         for (
             const other
             of lobby.players.values()
         ) {
-
             if (
                 other ===
                 ignoredPlayer
             ) {
                 continue;
             }
-
 
             const distance =
                 Math.hypot(
@@ -291,21 +321,17 @@ function randomSpawn(
                         other.z
                 );
 
-
             closest =
                 Math.min(
                     closest,
                     distance
                 );
-
         }
-
 
         if (
             closest >
             bestDistance
         ) {
-
             bestDistance =
                 closest;
 
@@ -314,27 +340,23 @@ function randomSpawn(
                 y: 1.6,
                 z
             };
-
         }
-
     }
-
 
     return bestSpawn;
 }
 
-const WALLS = [
-    { x: 0, z: 0, w: 5, d: 5 },
-    { x: -9, z: 0, w: 3, d: 9 },
-    { x: 9, z: 0, w: 3, d: 9 },
-    { x: 0, z: -10, w: 8, d: 3 },
-    { x: 0, z: 10, w: 8, d: 3 }
-];
+/*
+ * ==========================================
+ * UTILS
+ * ==========================================
+ */
 
 function send(ws, data) {
     if (
         ws &&
-        ws.readyState === WebSocket.OPEN
+        ws.readyState ===
+        WebSocket.OPEN
     ) {
         ws.send(
             JSON.stringify(data)
@@ -342,9 +364,13 @@ function send(ws, data) {
     }
 }
 
-function broadcast(lobby, data) {
+function broadcast(
+    lobby,
+    data
+) {
     for (
-        const player of lobby.players.values()
+        const player
+        of lobby.players.values()
     ) {
         send(
             player.ws,
@@ -370,22 +396,18 @@ function randomCode() {
     return code;
 }
 
-
 function resetPlayer(player) {
-
     if (
         !player.lobby
     ) {
         return;
     }
 
-
     const spawn =
         randomSpawn(
             player.lobby,
             player
         );
-
 
     player.x =
         spawn.x;
@@ -395,12 +417,6 @@ function resetPlayer(player) {
 
     player.z =
         spawn.z;
-
-
-    /*
-        Losowy kierunek patrzenia
-        po respawnie.
-    */
 
     player.yaw =
         Math.random() *
@@ -488,7 +504,9 @@ function sendLobbyInfo(lobby) {
                 "lobbyInfo",
 
             lobby:
-                getLobbyInfo(lobby)
+                getLobbyInfo(
+                    lobby
+                )
         }
     );
 }
@@ -501,9 +519,12 @@ function everyoneReady(lobby) {
     }
 
     for (
-        const player of lobby.players.values()
+        const player
+        of lobby.players.values()
     ) {
-        if (!player.ready) {
+        if (
+            !player.ready
+        ) {
             return false;
         }
     }
@@ -513,7 +534,8 @@ function everyoneReady(lobby) {
 
 function resetScores(lobby) {
     for (
-        const player of lobby.players.values()
+        const player
+        of lobby.players.values()
     ) {
         player.kills =
             0;
@@ -542,7 +564,9 @@ function checkGameStart(lobby) {
     }
 
     if (
-        !everyoneReady(lobby)
+        !everyoneReady(
+            lobby
+        )
     ) {
         return;
     }
@@ -614,14 +638,8 @@ function finishGame(
         }
     );
 
-    /*
-        Po kilku sekundach lobby
-        wraca do oczekiwania na gotowość.
-    */
-
     setTimeout(
         () => {
-
             if (
                 !lobbies.has(
                     lobby.code
@@ -637,7 +655,6 @@ function finishGame(
                 const player
                 of lobby.players.values()
             ) {
-
                 player.ready =
                     false;
 
@@ -652,14 +669,12 @@ function finishGame(
             sendLobbyInfo(
                 lobby
             );
-
         },
         5000
     );
 }
 
 function removePlayer(ws) {
-
     const player =
         ws.player;
 
@@ -694,7 +709,6 @@ function removePlayer(ws) {
     if (
         lobby.players.size === 0
     ) {
-
         lobbies.delete(
             lobby.code
         );
@@ -702,17 +716,10 @@ function removePlayer(ws) {
         return;
     }
 
-    /*
-        Jeżeli host wyszedł,
-        przekazujemy hosta
-        następnemu graczowi.
-    */
-
     if (
         lobby.hostId ===
         player.id
     ) {
-
         const newHost =
             lobby.players
                 .values()
@@ -720,7 +727,6 @@ function removePlayer(ws) {
                 .value;
 
         if (newHost) {
-
             lobby.hostId =
                 newHost.id;
 
@@ -737,20 +743,9 @@ function removePlayer(ws) {
         }
     }
 
-    if (
-        !lobby.started
-    ) {
-
-        sendLobbyInfo(
-            lobby
-        );
-
-    } else {
-
-        sendLobbyInfo(
-            lobby
-        );
-    }
+    sendLobbyInfo(
+        lobby
+    );
 }
 
 function number(value) {
@@ -850,15 +845,18 @@ function rayHitsPlayer(
 
     const closestX =
         shooter.x +
-        dir.x * along;
+        dir.x *
+        along;
 
     const closestY =
         shooter.y +
-        dir.y * along;
+        dir.y *
+        along;
 
     const closestZ =
         shooter.z +
-        dir.z * along;
+        dir.z *
+        along;
 
     const miss =
         Math.hypot(
@@ -878,12 +876,16 @@ function rayHitsPlayer(
     );
 }
 
+/*
+ * ==========================================
+ * WEBSOCKET CONNECTION
+ * ==========================================
+ */
+
 wss.on(
     "connection",
     ws => {
-
         const player = {
-
             ws,
 
             id:
@@ -943,31 +945,25 @@ wss.on(
         ws.on(
             "message",
             raw => {
-
                 let data;
 
                 try {
-
                     data =
                         JSON.parse(
                             raw.toString()
                         );
-
                 } catch {
-
                     return;
-
                 }
 
                 /*
-                    CREATE LOBBY
-                */
+                 * CREATE LOBBY
+                 */
 
                 if (
                     data.type ===
                     "createLobby"
                 ) {
-
                     removePlayer(
                         ws
                     );
@@ -978,18 +974,15 @@ wss.on(
                         );
 
                     if (
-                        !ALLOWED_KILL_LIMITS
-                            .includes(
-                                killLimit
-                            )
+                        !ALLOWED_KILL_LIMITS.includes(
+                            killLimit
+                        )
                     ) {
-
                         killLimit =
                             10;
                     }
 
                     const lobby = {
-
                         code:
                             randomCode(),
 
@@ -1071,14 +1064,13 @@ wss.on(
                 }
 
                 /*
-                    JOIN LOBBY
-                */
+                 * JOIN LOBBY
+                 */
 
                 if (
                     data.type ===
                     "joinLobby"
                 ) {
-
                     removePlayer(
                         ws
                     );
@@ -1097,7 +1089,6 @@ wss.on(
                         );
 
                     if (!lobby) {
-
                         send(
                             ws,
                             {
@@ -1116,7 +1107,6 @@ wss.on(
                         lobby.started ||
                         lobby.finished
                     ) {
-
                         send(
                             ws,
                             {
@@ -1135,7 +1125,6 @@ wss.on(
                         lobby.players.size >=
                         16
                     ) {
-
                         send(
                             ws,
                             {
@@ -1198,14 +1187,13 @@ wss.on(
                 }
 
                 /*
-                    READY
-                */
+                 * READY
+                 */
 
                 if (
                     data.type ===
                     "ready"
                 ) {
-
                     if (
                         !player.lobby ||
                         player.lobby.started ||
@@ -1229,14 +1217,13 @@ wss.on(
                 }
 
                 /*
-                    UPDATE
-                */
+                 * UPDATE
+                 */
 
                 if (
                     data.type ===
                     "update"
                 ) {
-
                     if (
                         !player.lobby ||
                         !player.lobby.started
@@ -1249,7 +1236,6 @@ wss.on(
                             data.x
                         )
                     ) {
-
                         player.x =
                             clamp(
                                 data.x,
@@ -1263,7 +1249,6 @@ wss.on(
                             data.y
                         )
                     ) {
-
                         player.y =
                             clamp(
                                 data.y,
@@ -1277,7 +1262,6 @@ wss.on(
                             data.z
                         )
                     ) {
-
                         player.z =
                             clamp(
                                 data.z,
@@ -1291,7 +1275,6 @@ wss.on(
                             data.yaw
                         )
                     ) {
-
                         player.yaw =
                             data.yaw;
                     }
@@ -1301,7 +1284,6 @@ wss.on(
                             data.pitch
                         )
                     ) {
-
                         player.pitch =
                             clamp(
                                 data.pitch,
@@ -1340,14 +1322,13 @@ wss.on(
                 }
 
                 /*
-                    SHOOT
-                */
+                 * SHOOT
+                 */
 
                 if (
                     data.type ===
                     "shoot"
                 ) {
-
                     if (
                         !player.lobby ||
                         !player.lobby.started
@@ -1405,7 +1386,6 @@ wss.on(
                         const other
                         of player.lobby.players.values()
                     ) {
-
                         if (
                             other.id ===
                             player.id
@@ -1425,7 +1405,6 @@ wss.on(
                                 other
                             )
                         ) {
-
                             const d =
                                 distance(
                                     player,
@@ -1436,7 +1415,6 @@ wss.on(
                                 d <
                                 bestDistance
                             ) {
-
                                 bestDistance =
                                     d;
 
@@ -1476,7 +1454,6 @@ wss.on(
                     if (
                         target.hp <= 0
                     ) {
-
                         player.kills++;
 
                         target.deaths++;
@@ -1539,26 +1516,18 @@ wss.on(
                             }
                         );
 
-                        /*
-                            SPRAWDZENIE LIMITU
-                        */
-
                         if (
                             player.kills >=
                             player.lobby.killLimit
                         ) {
-
                             finishGame(
                                 player.lobby,
                                 player
                             );
-
                         } else {
-
                             sendLobbyInfo(
                                 player.lobby
                             );
-
                         }
                     }
 
@@ -1566,14 +1535,13 @@ wss.on(
                 }
 
                 /*
-                    LEAVE
-                */
+                 * LEAVE
+                 */
 
                 if (
                     data.type ===
                     "leave"
                 ) {
-
                     removePlayer(
                         ws
                     );
@@ -1586,28 +1554,30 @@ wss.on(
         ws.on(
             "close",
             () => {
-
                 removePlayer(
                     ws
                 );
-
             }
         );
     }
 );
 
+/*
+ * ==========================================
+ * START SERVER
+ * ==========================================
+ */
+
 server.listen(
     PORT,
     "0.0.0.0",
     () => {
-
-        console.log("");
         console.log(
             "======================================"
         );
 
         console.log(
-            "             FPS ARENA"
+            "              NEXAR FPS"
         );
 
         console.log(
@@ -1615,16 +1585,18 @@ server.listen(
         );
 
         console.log(
-            `http://localhost:${PORT}`
+            `Server listening on port ${PORT}`
         );
-
-        console.log("");
 
         console.log(
-            "Serwer działa."
+            "Environment:",
+            process.env.NODE_ENV ||
+            "development"
         );
 
-        console.log("");
+        console.log(
+            "======================================"
+        );
     }
 );
 
