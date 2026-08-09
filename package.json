@@ -1,0 +1,15 @@
+{
+  "name": "fps-arena",
+  "version": "2.0.0",
+  "description": "Local multiplayer 3D FPS Arena",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "three": "^0.180.0",
+    "ws": "^8.18.3"
+  }
+}
+
