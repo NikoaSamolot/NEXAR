@@ -1,2 +1,0 @@
-# NEXAR
-Online multiplayer fps
